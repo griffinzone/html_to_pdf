@@ -1,0 +1,19 @@
+{
+    "name": "pdf-service",
+    "private": true,
+    "scripts": {
+        "build": "tsc -p tsconfig.json",
+        "start": "node dist/server.js",
+        "dev": "ts-node-dev --respawn --transpile-only src/server.ts"
+    },
+    "dependencies": {
+        "express": "^4.21.1",
+        "puppeteer": "^24.29.0",
+        "puppeteer-core": "^23.7.0"
+    },
+    "devDependencies": {
+        "@types/express": "^4.17.21",
+        "ts-node-dev": "^2.0.0",
+        "typescript": "^5.6.3"
+    }
+}
