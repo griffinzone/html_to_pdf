@@ -437,6 +437,112 @@ app.post("/pdf-76mm", async (req, res) => {
   }
 });
 
+app.post("/pdf-custom", async (req, res) => {
+  const html = req.body?.html || "";
+  const key = req.body?.key || "";
+  const width = req.body?.width || "";
+
+  // Security key
+  if (key !== "cudjocdh^&6dudm") {
+    if (!html.trim()) return res.status(400).json({ error: "Lol, go away" });
+  }
+  if (!html.trim()) return res.status(400).json({ error: "html required" });
+
+  let browser: any;
+  const isWin = os.platform() === "win32";
+
+  try {
+    console.log("🚀 Launching Chrome:", CHROME_PATH);
+
+    browser = await puppeteer.launch({
+      executablePath: CHROME_PATH,
+      headless: true,
+      args: isWin
+        ? [
+            "--disable-gpu",
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--allow-file-access-from-files",
+            "--enable-local-file-accesses",
+            "--disable-dev-shm-usage",
+            "--disable-web-security",
+            "--disable-features=IsolateOrigins,site-per-process"
+          ]
+        : [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-gpu",
+            "--disable-dev-shm-usage",
+            "--no-zygote",
+            "--single-process",
+            "--allow-file-access-from-files",
+            "--enable-local-file-accesses"
+          ],
+    });
+
+    const page = await browser.newPage();
+    await page.setBypassCSP(true);
+
+    await page.setContent(html, {
+      waitUntil: ["networkidle0", "domcontentloaded"]
+    });
+
+    // Wait for image loading
+    await page.evaluate(() => {
+      const imgs = Array.from(document.querySelectorAll("img"));
+      return Promise.all(
+        imgs.map((img) =>
+          img.complete
+            ? Promise.resolve()
+            : new Promise((res) => {
+                img.onload = img.onerror = res;
+              })
+        )
+      );
+    });
+
+    // -------------------------------------------
+    // 📏 STEP 1: Measure actual rendered height
+    // -------------------------------------------
+    const heightPx = await page.evaluate(() => {
+      const body = document.body;
+      return body.scrollHeight;
+    });
+
+    // Convert PX → mm
+    const heightMm = heightPx * 0.264583;
+
+    // Add safety padding for dot-matrix
+    const finalMm = heightMm + 6;
+
+    console.log("📏 DotMatrix 76mm Height:", {
+      px: heightPx,
+      mm: finalMm.toFixed(2)
+    });
+
+    // -------------------------------------------
+    // 📄 STEP 2: Generate exact-sized 76mm PDF
+    // -------------------------------------------
+    const pdf = await page.pdf({
+      width: `${width}mm`,            // Printable width for 76mm dot-matrix
+      height: `${finalMm}mm`,   // Auto-measured height
+      printBackground: true,
+      margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" }
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", "inline; filename=receipt-76mm.pdf");
+
+    return res.send(Buffer.from(pdf));
+
+  } catch (err) {
+    console.error("❌ PDF Error:", err);
+    return res.status(500).json({ error: "PDF failed" });
+  } finally {
+    if (browser) await browser.close().catch(() => null);
+  }
+});
+
 http.createServer(app).listen(PORT, () => {
   console.log(`✅ PDF Service Ready @ localhost:${PORT}`);
   console.log(`🧠 Chrome Path: ${CHROME_PATH}`);
