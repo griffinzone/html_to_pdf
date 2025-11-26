@@ -441,6 +441,7 @@ app.post("/pdf-custom", async (req, res) => {
   const html = req.body?.html || "";
   const key = req.body?.key || "";
   const width = req.body?.width || "";
+  const height = req.body?.height || "";
 
   // Security key
   if (key !== "cudjocdh^&6dudm") {
@@ -452,7 +453,6 @@ app.post("/pdf-custom", async (req, res) => {
   const isWin = os.platform() === "win32";
 
   try {
-    console.log("🚀 Launching Chrome:", CHROME_PATH);
 
     browser = await puppeteer.launch({
       executablePath: CHROME_PATH,
@@ -504,28 +504,23 @@ app.post("/pdf-custom", async (req, res) => {
     // -------------------------------------------
     // 📏 STEP 1: Measure actual rendered height
     // -------------------------------------------
-    const heightPx = await page.evaluate(() => {
-      const body = document.body;
-      return body.scrollHeight;
-    });
+    // const heightPx = await page.evaluate(() => {
+    //   const body = document.body;
+    //   return body.scrollHeight;
+    // });
 
     // Convert PX → mm
-    const heightMm = heightPx * 0.264583;
+    // const heightMm = heightPx * 0.264583;
 
     // Add safety padding for dot-matrix
-    const finalMm = heightMm + 6;
-
-    console.log("📏 DotMatrix 76mm Height:", {
-      px: heightPx,
-      mm: finalMm.toFixed(2)
-    });
+    // const finalMm = heightMm + 6;
 
     // -------------------------------------------
     // 📄 STEP 2: Generate exact-sized 76mm PDF
     // -------------------------------------------
     const pdf = await page.pdf({
       width: `${width}mm`,            // Printable width for 76mm dot-matrix
-      height: `${finalMm}mm`,   // Auto-measured height
+      height: `${Number(height) + 1}mm`,   // Auto-measured height
       printBackground: true,
       margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" }
     });
