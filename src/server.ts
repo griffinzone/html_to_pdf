@@ -232,7 +232,6 @@ app.post("/pdf-80mm", async (req, res) => {
   const html = req.body?.html || "";
   const key = req.body?.key || "";
 
-  // Security key
   if (key !== "cudjocdh^&6dudm") {
     if (!html.trim()) return res.status(400).json({ error: "Lol, go away" });
   }
@@ -242,8 +241,6 @@ app.post("/pdf-80mm", async (req, res) => {
   const isWin = os.platform() === "win32";
 
   try {
-    console.log("🚀 Launching Chrome:", CHROME_PATH);
-
     browser = await puppeteer.launch({
       executablePath: CHROME_PATH,
       headless: true,
@@ -252,21 +249,12 @@ app.post("/pdf-80mm", async (req, res) => {
             "--disable-gpu",
             "--no-sandbox",
             "--disable-setuid-sandbox",
-            "--allow-file-access-from-files",
-            "--enable-local-file-accesses",
-            "--disable-dev-shm-usage",
-            "--disable-web-security",
-            "--disable-features=IsolateOrigins,site-per-process"
+            "--disable-dev-shm-usage"
           ]
         : [
             "--no-sandbox",
             "--disable-setuid-sandbox",
-            "--disable-gpu",
-            "--disable-dev-shm-usage",
-            "--no-zygote",
-            "--single-process",
-            "--allow-file-access-from-files",
-            "--enable-local-file-accesses"
+            "--disable-dev-shm-usage"
           ],
     });
 
@@ -277,14 +265,14 @@ app.post("/pdf-80mm", async (req, res) => {
       waitUntil: ["networkidle0", "domcontentloaded"]
     });
 
-    // Wait for all images
+    // Ensure images fully loaded
     await page.evaluate(() => {
       const imgs = Array.from(document.querySelectorAll("img"));
       return Promise.all(
-        imgs.map((img) =>
+        imgs.map(img =>
           img.complete
             ? Promise.resolve()
-            : new Promise((res) => {
+            : new Promise(res => {
                 img.onload = img.onerror = res;
               })
         )
@@ -292,31 +280,30 @@ app.post("/pdf-80mm", async (req, res) => {
     });
 
     // -------------------------------------------
-    // 📏 STEP 1: Measure actual rendered height
+    // 📏 Measure EXACT receipt height
     // -------------------------------------------
     const heightPx = await page.evaluate(() => {
-      const body = document.body;
-      return body.scrollHeight;
+      const receipt = document.getElementById("receipt");
+      return receipt
+        ? receipt.scrollHeight
+        : Math.max(
+            document.body.scrollHeight,
+            document.documentElement.scrollHeight
+          );
     });
 
-    // Convert PX → MM (1 px = 0.264583 mm)
     const heightMm = heightPx * 0.264583;
-
-    // Add safety padding
-    const finalMm = heightMm + 5;
-
-    console.log("📏 80mm Receipt Height:", {
-      px: heightPx,
-      mm: finalMm.toFixed(2)
-    });
+    const finalMm = heightMm + 2; // ✅ reduced padding
 
     // -------------------------------------------
-    // 📄 STEP 2: Generate exact-sized 80mm PDF
+    // 📄 Generate PDF (locked sizing)
     // -------------------------------------------
     const pdf = await page.pdf({
-      width: "72mm",             // Printable width for 80mm thermal printers
-      height: `${finalMm}mm`,    // Auto-measured height
+      width: "72mm",
+      height: `${finalMm}mm`,
       printBackground: true,
+      scale: 1,
+      preferCSSPageSize: true,
       margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" }
     });
 
